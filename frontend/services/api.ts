@@ -144,12 +144,12 @@ export const formatApiError = (error: any, fallbackMessage: string = 'Operation 
 
   // 3. Network & Connectivity issues
   if (error.code === 'ERR_NETWORK' || error.message?.toLowerCase().includes('network error') || !error.response) {
-    return `Network Error: Unable to reach VisionInspect AI backend at ${API_URL}. The service may be starting up or experiencing connectivity delays. Please retry in a few seconds.`;
+    return `Network Connection Notice: Unable to connect to VisionInspect AI backend at ${API_URL}. The Render cloud instance may be spinning up from idle (cold start takes 45-75s). Please wait a moment and retry.`;
   }
 
   // 4. Timeouts
   if (error.code === 'ECONNABORTED' || error.message?.toLowerCase().includes('timeout')) {
-    return 'Request Timeout: AI model inference took longer than expected. Please retry.';
+    return 'Request Timeout: The AI inspection service is warming up or processing a large image. Please retry.';
   }
 
   return error.message ? `${statusPrefix}${error.message}` : fallbackMessage;
@@ -215,7 +215,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response Interceptor: Safe logging and centralized 401 handling
+// Response Interceptor: Safe logging, automatic cold-start retry with exponential backoff, and 401 handling
 api.interceptors.response.use(
   (response) => {
     if (process.env.NODE_ENV === 'development') {
@@ -223,7 +223,26 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
+  async (error) => {
+    const config = error.config;
+
+    // Retry transient network errors and Render cold-start status codes (502, 503, 504)
+    const isTransient = 
+      !error.response || 
+      error.code === 'ERR_NETWORK' || 
+      (error.response.status >= 502 && error.response.status <= 504);
+
+    if (config && isTransient && (config.method?.toLowerCase() === 'get' || config.url?.includes('/health') || config.url?.includes('/auth/login'))) {
+      config._retryCount = (config._retryCount || 0) + 1;
+      const maxRetries = 3;
+      if (config._retryCount <= maxRetries) {
+        const delayMs = 1500 * Math.pow(2, config._retryCount - 1); // 1.5s, 3s, 6s
+        console.warn(`[API Retry] Request to ${config.url} encountered transient error (${error.message || error.code}). Retrying ${config._retryCount}/${maxRetries} after ${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return api(config);
+      }
+    }
+
     if (process.env.NODE_ENV === 'development') {
       const status = error.response?.status || 'NETWORK_ERR';
       const url = error.config?.url || 'unknown';

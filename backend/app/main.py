@@ -71,6 +71,8 @@ allowed_origins = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "https://vision-ai-inspect-frontend-prod.onrender.com",
+    "https://vision-ai-inspect-frontend.onrender.com",
+    "https://visioninspect-frontend.onrender.com",
     "https://vision-ai-inspect.onrender.com",
 ]
 if cors_origins_env and cors_origins_env != "*":
@@ -121,11 +123,11 @@ def health_check():
 
 @app.on_event("startup")
 def create_tables_on_startup():
-    """Ensure database tables and default roles exist when the app starts."""
+    """Ensure database tables, default roles, and 15 MVTec catalog products exist when the app starts."""
     try:
         Base.metadata.create_all(bind=engine)
         from app.database.session import SessionLocal
-        from app.models.all_models import Role, User
+        from app.models.all_models import Role, User, Product, ProductionBatch
         from app.core.security import get_password_hash
         
         db = SessionLocal()
@@ -169,23 +171,42 @@ def create_tables_on_startup():
                     user_record.is_active = True
             db.commit()
 
-            # Seed initial products if catalog is empty
-            from app.models.all_models import Product, ProductionBatch
-            if db.query(Product).count() == 0:
-                p1 = Product(name="Bottle Container Inspection", product_code="BTL-001", production_line="Line 1 - Bottling", description="Translucent glass & PET container defect detection")
-                p2 = Product(name="PCB Logic Board Assembly", product_code="PCB-X100", production_line="Line 2 - SMT", description="High-density printed circuit boards with surface mount components")
-                p3 = Product(name="Precision Gearbox Transmission", product_code="GR-204", production_line="Line 3 - Machining", description="Precision machined automotive gears and bearings")
-                db.add_all([p1, p2, p3])
-                db.commit()
-                db.refresh(p1)
-                db.refresh(p2)
-                db.refresh(p3)
+            # Seed all 15 MVTec product categories and standard production lines
+            mvtec_catalog = [
+                ("Bottle Container Inspection", "BTL-001", "Line 1 - Bottling", "Translucent glass & PET container defect detection"),
+                ("Cable Wiring Harness Assembly", "CBL-002", "Line 2 - Wire Harness", "Multi-core insulated wiring cables and connectors"),
+                ("Capsule Pharmaceutical Solid Dose", "CAP-003", "Line 3 - Packaging", "Hard gelatin and vegetable capsules"),
+                ("Woven Carpet Textile Surface", "CPT-004", "Line 4 - Textiles", "Tufted and woven industrial carpets"),
+                ("Metallic Mesh Grid Structure", "GRD-005", "Line 5 - Fabrication", "Precision woven metallic grids and filters"),
+                ("Hazelnut Organic Product Sorting", "HZN-006", "Line 6 - Sorting", "Shelled and whole industrial food nuts"),
+                ("Finished Leather Surface Material", "LTH-007", "Line 7 - Tannery", "Tanned upholstery and automotive leather sheets"),
+                ("Hexagonal Metal Nut Fastener", "NUT-008", "Line 8 - Hardware", "Machined steel and brass threaded nuts"),
+                ("Pharmaceutical Compressed Tablet Pill", "PIL-009", "Line 9 - Pharma", "Coated medical tablets and pills"),
+                ("Industrial Threaded Steel Screw", "SCR-010", "Line 10 - Fasteners", "Countersunk and pan-head threaded machine screws"),
+                ("Glazed Ceramic Floor Tile", "TIL-011", "Line 11 - Ceramics", "Polished and textured architectural ceramic tiles"),
+                ("Molded Bristle Toothbrush Head", "TBH-012", "Line 12 - Consumer", "Hygiene brush heads and embedded bristle bundles"),
+                ("Electronic Semiconductor Transistor", "TRS-013", "Line 13 - Electronics", "Through-hole TO-92 and power semiconductor packages"),
+                ("Natural Wood Floor Plank Surface", "WOD-014", "Line 14 - Lumber", "Milled timber and hardwood floorboards"),
+                ("Molded Coil Zipper Fastener Chain", "ZIP-015", "Line 15 - Apparel", "Continuous coil and tooth apparel zippers"),
+                ("PCB Logic Board Assembly", "PCB-X100", "Line 16 - SMT", "High-density printed circuit boards with surface mount components"),
+                ("Precision Gearbox Transmission", "GR-204", "Line 17 - Machining", "Precision machined automotive gears and bearings"),
+            ]
 
-                b1 = ProductionBatch(batch_number="BATCH-BTL-001", product_id=p1.id)
-                b2 = ProductionBatch(batch_number="BATCH-PCB-001", product_id=p2.id)
-                b3 = ProductionBatch(batch_number="BATCH-GR-001", product_id=p3.id)
-                db.add_all([b1, b2, b3])
-                db.commit()
+            for name, code, line, desc in mvtec_catalog:
+                product = db.query(Product).filter(Product.product_code == code).first()
+                if not product:
+                    product = Product(name=name, product_code=code, production_line=line, description=desc)
+                    db.add(product)
+                    db.commit()
+                    db.refresh(product)
+                
+                # Ensure default batch exists for each product
+                batch_num = f"BATCH-{code}"
+                batch = db.query(ProductionBatch).filter(ProductionBatch.batch_number == batch_num).first()
+                if not batch:
+                    batch = ProductionBatch(batch_number=batch_num, product_id=product.id)
+                    db.add(batch)
+                    db.commit()
         finally:
             db.close()
 
