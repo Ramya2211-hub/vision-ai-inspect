@@ -232,7 +232,16 @@ api.interceptors.response.use(
       error.code === 'ERR_NETWORK' || 
       (error.response.status >= 502 && error.response.status <= 504);
 
-    if (config && isTransient && (config.method?.toLowerCase() === 'get' || config.url?.includes('/health') || config.url?.includes('/auth/login'))) {
+    if (
+      config && 
+      isTransient && 
+      (
+        config.method?.toLowerCase() === 'get' || 
+        config.url?.includes('/health') || 
+        config.url?.includes('/auth/login') ||
+        config.url?.includes('/auth/register')
+      )
+    ) {
       config._retryCount = (config._retryCount || 0) + 1;
       const maxRetries = 3;
       if (config._retryCount <= maxRetries) {

@@ -13,17 +13,20 @@ from app.core.config import settings
 
 router = APIRouter()
 
+from sqlalchemy import func
+
 @router.post("/login", response_model=Token)
 def login(login_data: LoginRequest, db: Session = Depends(get_db)):
-    # Support logging in with either username or email address
+    # Support logging in with either username or email address (case-insensitive)
     identifier = (login_data.username or login_data.email or "").strip()
     if not identifier:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username or email is required",
         )
+    ident_lower = identifier.lower()
     user = db.query(User).filter(
-        (User.username == identifier) | (User.email == identifier)
+        (func.lower(User.username) == ident_lower) | (func.lower(User.email) == ident_lower)
     ).first()
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
@@ -40,7 +43,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         email = user_in.email.strip().lower()
 
         existing_user = db.query(User).filter(
-            (User.username == username) | (User.email == email)
+            (func.lower(User.username) == username.lower()) | (func.lower(User.email) == email.lower())
         ).first()
         if existing_user:
             if existing_user.username.lower() == username.lower():
@@ -74,8 +77,10 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
             "role": new_user.role.name if new_user.role else norm_role
         }
     except HTTPException as he:
+        db.rollback()
         raise he
     except Exception as exc:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(exc))
 
 @router.get("/me", response_model=UserResponse)
