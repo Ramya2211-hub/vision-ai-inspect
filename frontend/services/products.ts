@@ -34,6 +34,11 @@ export const productsService = {
     }
     const response = await api.post('/products/', payload);
     return response.data as Product;
+  },
+
+  seedBuiltin: async (): Promise<Product[]> => {
+    const response = await api.post('/products/seed');
+    return Array.isArray(response.data) ? (response.data as Product[]) : [];
   }
 };
 

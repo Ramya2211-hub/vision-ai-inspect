@@ -8,7 +8,7 @@ import { batchesService } from '@/services/batches';
 import { inspectionsService } from '@/services/inspections';
 import { formatApiError } from '@/services/api';
 import { Product, Batch } from '@/types';
-import { Camera as CameraIcon, UploadCloud, X, Cpu, AlertCircle, Loader2 } from 'lucide-react';
+import { Camera as CameraIcon, UploadCloud, X, Cpu, AlertCircle, Loader2, Package, Tag } from 'lucide-react';
 import Webcam from 'react-webcam';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -170,11 +170,71 @@ export default function NewInspectionPage() {
         )}
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-base font-bold text-slate-800 mb-4">1. Inspection Context</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <Package size={18} className="text-blue-600" />
+              <span>1. Inspection Context & Product Selection</span>
+            </h2>
+            <span className="text-xs text-slate-500">
+              Total Catalog Products: <strong className="text-slate-800">{products.length}</strong>
+            </span>
+          </div>
+
+          {/* Quick Category Buttons for Instant 1-Click Selection in Less Time */}
+          <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Tag size={13} className="text-blue-600" />
+              <span>Quick Select Category (1-Click Shortcut):</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+              {[
+                'Bottle', 'Cable', 'Capsule', 'Carpet', 'Grid', 'Hazelnut',
+                'Leather', 'Metal Nut', 'Pill', 'Screw', 'Tile', 'Toothbrush',
+                'Transistor', 'Wood', 'Zipper', 'Other'
+              ].map((catName) => {
+                // Find matching product in catalog
+                const match = products.find((p) => {
+                  const norm = p.name.toLowerCase();
+                  if (catName === 'Other') return norm.includes('other') || norm.includes('custom') || norm.includes('unknown');
+                  return norm.includes(catName.toLowerCase()) || norm.includes(catName.toLowerCase().replace(' ', '_'));
+                });
+                const isSelected = match && selectedProduct === match.id.toString();
+
+                return (
+                  <button
+                    key={catName}
+                    type="button"
+                    onClick={() => {
+                      if (match) {
+                        setSelectedProduct(match.id.toString());
+                        setErrorMessage(null);
+                      }
+                    }}
+                    disabled={isProcessing || !match}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : match
+                        ? 'bg-white border border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-600'
+                        : 'bg-slate-100 text-slate-400 border border-slate-200 opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <span>{catName}</span>
+                    {match && (
+                      <span className={`text-[10px] font-mono ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
+                        #{match.id}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="select-product-inspection" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Product <span className="text-rose-500">*</span>
+                Target Product & ID <span className="text-rose-500">*</span>
               </label>
               <select
                 id="select-product-inspection"
@@ -184,18 +244,41 @@ export default function NewInspectionPage() {
                   setErrorMessage(null);
                 }}
                 disabled={isProcessing || loadingContext}
-                className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all bg-white disabled:bg-slate-50"
+                className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all bg-white disabled:bg-slate-50 font-medium text-slate-800"
               >
                 {products.length === 0 ? (
                   <option value="">{loadingContext ? 'Loading products...' : 'No products available'}</option>
                 ) : (
                   products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} {p.product_code ? `(${p.product_code})` : ''}
+                      [ID: #{p.id}] {p.name} {p.product_code ? `(${p.product_code})` : ''}
                     </option>
                   ))
                 )}
               </select>
+
+              {/* Selected Product Details Badge */}
+              {selectedProduct && (() => {
+                const sel = products.find((p) => p.id.toString() === selectedProduct);
+                if (!sel) return null;
+                const isOther = sel.name.toLowerCase().includes('other') || sel.name.toLowerCase().includes('custom');
+                return (
+                  <div className="mt-2.5 p-2.5 bg-blue-50/60 border border-blue-100 rounded-lg text-xs flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-blue-900">Selected Product:</span>{' '}
+                      <span className="text-slate-800 font-semibold">{sel.name}</span>{' '}
+                      <span className="font-mono text-blue-700 bg-blue-100/80 px-1.5 py-0.5 rounded text-[11px]">
+                        ID: #{sel.id}
+                      </span>
+                    </div>
+                    {isOther && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                        OOD Screener Active
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div>
