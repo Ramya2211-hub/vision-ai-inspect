@@ -190,6 +190,7 @@ def create_tables_on_startup():
                 ("Molded Coil Zipper Fastener Chain", "ZIP-015", "Line 15 - Apparel", "Continuous coil and tooth apparel zippers"),
                 ("PCB Logic Board Assembly", "PCB-X100", "Line 16 - SMT", "High-density printed circuit boards with surface mount components"),
                 ("Precision Gearbox Transmission", "GR-204", "Line 17 - Machining", "Precision machined automotive gears and bearings"),
+                ("Other", "OTH-999", "Line 99 - General", "Custom objects, household items, or user-defined items with automated OOD screening"),
             ]
 
             for name, code, line, desc in mvtec_catalog:
